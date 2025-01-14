@@ -14,27 +14,35 @@ func main() {
 	var todos = make([]string, 0)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /todo", func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte("Hello World"))
-		if err != nil {
-			log.Fatal(err)
+	// Unified Handler for GET and POST requests
+	mux.HandleFunc("/todo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// Encode todos as JSON and write to the response
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(todos); err != nil {
+				log.Println(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		} else if r.Method == http.MethodPost {
+			// Decode the new to-do item from the request body
+			var t TodoItem
+			if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+				log.Println(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Append the new item to the todos slice
+			todos = append(todos, t.Item)
+			w.WriteHeader(http.StatusCreated)
+		} else {
+			// Method not allowed
+			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
 
-	mux.HandleFunc("POST /todo", func(w http.ResponseWriter, r *http.Request) {
-		var t TodoItem
-		err := json.NewDecoder(r.Body).Decode(&t)
-		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-
-		}
-
-		todos = append(todos, t.Item)
-		w.WriteHeader(http.StatusCreated)
-		return
-	})
+	// Start the HTTP server
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
